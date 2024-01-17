@@ -1,0 +1,17 @@
+name: "kernel/build/bootstrap"
+description:
+    "Bootstrap DDKv2"
+
+third_party {
+  url {
+    type: "Homepage"
+    value: "https://source.android.com/setup/build/building-kernels"
+  }
+  url {
+    type: "Git"
+    value: "https://android.googlesource.com/kernel/build/bootstrap"
+  }
+  version: ""
+  last_upgrade_date { year: 2024 month: 1 day: 17 }
+  license_type: NOTICE
+}

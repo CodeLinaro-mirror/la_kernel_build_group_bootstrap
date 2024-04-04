@@ -20,6 +20,8 @@ import argparse
 import io
 import json
 import logging
+import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -43,10 +45,18 @@ _BUILD_IDS_URL_FMT = (
     + "builds?branch={branch}&target={build_target}&buildAttemptStatus=complete&buildType=submitted&maxResults=1&fields=builds.buildId"
 )
 _DEFAULT_BUILD_TARGET = "kernel_aarch64"
+_TOOLS_BAZEL = "tools/bazel"
+_INIT_DDK_TARGET = "//build/kernel:init_ddk"
 
 
 class KleafBootstrapError(RuntimeError):
     pass
+
+
+def _resolve(opt_path: pathlib.Path | None) -> pathlib.Path | None:
+    if opt_path:
+        return opt_path.resolve()
+    return None
 
 
 class KleafBootstrap:
@@ -55,14 +65,33 @@ class KleafBootstrap:
     def __init__(self, known_args: argparse.Namespace, unknown_args: list[str]):
         self.branch: str | None = known_args.branch
         self.build_id: str | None = known_args.build_id
-        self.url_fmt: str = known_args.url_fmt
         self.build_target: str | None = known_args.build_target
+        self.ddk_workspace: pathlib.Path = _resolve(known_args.ddk_workspace)
+        self.local: pathlib.Path | None = _resolve(known_args.local)
+        self.url_fmt: str = known_args.url_fmt
         self.unknown_args = unknown_args
 
+    @staticmethod
+    def _run_script(args: list[str], cwd: str | pathlib.Path = None):
+        logging.debug("Running %s from %s", args, cwd)
+        subprocess.check_call(args, cwd=cwd)
+
+    def _common_args(self):
+        common_args = []
+        if self.build_target:
+            common_args += ["--build_target", self.build_target]
+        common_args += ["--url_fmt", self.url_fmt]
+        common_args += ["--ddk_workspace", self.ddk_workspace]
+        common_args += self.unknown_args
+        return common_args
+
     def run(self):
-        if not self.branch and not self.build_id:
-            logging.error("Either --branch or --build_id must be specified")
-            sys.exit(1)
+        if self.local:
+            args = [_TOOLS_BAZEL, "run", _INIT_DDK_TARGET]
+            args += ["--", "--kleaf_repo_dir", self.local]
+            args += self._common_args()
+            self._run_script(args, cwd=self.local)
+            return
 
         if not self.build_id:
             self._set_build_id()
@@ -73,18 +102,13 @@ class KleafBootstrap:
             prefix="init_ddk_", suffix=".zip", mode="w+b"
         ) as init_ddk:
             self._download_artifact("init_ddk.zip", init_ddk)
-
             args = ["python3", init_ddk.name]
             # Do not add --branch, because its meaning may change during the
             # process of this script.
             if self.build_id:
                 args += ["--build_id", self.build_id]
-            if self.build_target:
-                args += ["--build_target", self.build_target]
-            args += ["--url_fmt", self.url_fmt]
-            args += self.unknown_args
-            logging.debug("Running %s", args)
-            subprocess.check_call(args)
+            args += self._common_args()
+            self._run_script(args)
 
     def _set_build_id(self) -> str:
         assert self.branch, "branch is not set!"
@@ -101,18 +125,21 @@ class KleafBootstrap:
             )
         except json.JSONDecodeError as exc:
             raise KleafBootstrapError(
-                "Unable to get build_id: not json") from exc
+                "Unable to get build_id: not json"
+            ) from exc
 
         try:
             self.build_id = build_ids_res["builds"][0]["buildId"]
         except (KeyError, IndexError) as exc:
             raise KleafBootstrapError(
-                "Unable to get build_id: json not in expected format") from exc
+                "Unable to get build_id: json not in expected format"
+            ) from exc
 
         if not isinstance(self.build_id, str):
             raise KleafBootstrapError(
                 "Unable to get build_id: json not in expected format: "
-                "build id is not string")
+                "build id is not string"
+            )
 
     @staticmethod
     def _download(url, remote_filename, out_f: BinaryIO):
@@ -136,7 +163,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--local",
+        help="Path to Kleaf local checkout.",
+        type=pathlib.Path,
+        default=None,
+    )
+    group.add_argument(
         "--branch",
         help=(
             "Android Kernel branch from CI. e.g."
@@ -145,21 +179,30 @@ if __name__ == "__main__":
         type=str,
         default=None,
     )
-    parser.add_argument(
-        "--url_fmt",
-        help="URL format endpoint for CI downloads.",
-        default=_ARTIFACT_URL_FMT,
-    )
-    parser.add_argument(
+    group.add_argument(
         "--build_id",
         type=str,
         help="the build id to download the build for, e.g. 6148204",
+    )
+    parser.add_argument(
+        "--ddk_workspace",
+        help=(
+            "Path for the new DDK workspace. If not specified defaults to"
+            " current directory."
+        ),
+        type=pathlib.Path,
+        default=os.getcwd(),
     )
     parser.add_argument(
         "--build_target",
         type=str,
         help='the build target to download, e.g. "kernel_aarch64"',
         default=_DEFAULT_BUILD_TARGET,
+    )
+    parser.add_argument(
+        "--url_fmt",
+        help="URL format endpoint for CI downloads.",
+        default=_ARTIFACT_URL_FMT,
     )
     known_args, unknown_args = parser.parse_known_args()
     logging.basicConfig(

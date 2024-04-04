@@ -84,6 +84,8 @@ class KleafBootstrapTest(unittest.TestCase):
                     branch=branch,
                     build_target=_DEFAULT_BUILD_TARGET,
                     build_id=None,
+                    ddk_workspace=None,
+                    local=None,
                     url_fmt=_ARTIFACT_URL_FMT,
                 ), [])
                 obj._set_build_id()

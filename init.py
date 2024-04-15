@@ -67,14 +67,15 @@ class KleafBootstrap:
         self.build_id: str | None = known_args.build_id
         self.build_target: str | None = known_args.build_target
         self.ddk_workspace: pathlib.Path = _resolve(known_args.ddk_workspace)
-        self.local: pathlib.Path | None = _resolve(known_args.local)
+        self.kleaf_repo: pathlib.Path | None = _resolve(known_args.kleaf_repo)
+        self.local: bool = known_args.local
         self.url_fmt: str = known_args.url_fmt
         self.unknown_args = unknown_args
 
     @staticmethod
     def _run_script(args: list[str], cwd: str | pathlib.Path = None):
         logging.debug("Running %s from %s", args, cwd)
-        subprocess.check_call(args, cwd=cwd)
+        subprocess.check_call(args, stderr=subprocess.STDOUT, cwd=cwd)
 
     def _common_args(self):
         common_args = []
@@ -88,9 +89,9 @@ class KleafBootstrap:
     def run(self):
         if self.local:
             args = [_TOOLS_BAZEL, "run", _INIT_DDK_TARGET]
-            args += ["--", "--kleaf_repo_dir", self.local]
+            args += ["--", "--kleaf_repo_dir", self.kleaf_repo]
             args += self._common_args()
-            self._run_script(args, cwd=self.local)
+            self._run_script(args, cwd=self.kleaf_repo)
             return
 
         if not self.build_id:
@@ -163,13 +164,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
+    # For every use case, one of the following is needed:
+    #   --branch | --build_id for the remote use case.
+    #   --local for an existing checkout (--kleaf_repo becomes required).
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "--local",
-        help="Path to Kleaf local checkout.",
-        type=pathlib.Path,
-        default=None,
-    )
     group.add_argument(
         "--branch",
         help=(
@@ -183,6 +181,19 @@ if __name__ == "__main__":
         "--build_id",
         type=str,
         help="the build id to download the build for, e.g. 6148204",
+        default=None,
+    )
+    group.add_argument(
+        "--local",
+        help="Whether to use a local source tree containing Kleaf.",
+        action="store_true",
+        default=None,
+    )
+    parser.add_argument(
+        "--build_target",
+        type=str,
+        help='the build target to download, e.g. "kernel_aarch64"',
+        default=_DEFAULT_BUILD_TARGET,
     )
     parser.add_argument(
         "--ddk_workspace",
@@ -194,10 +205,13 @@ if __name__ == "__main__":
         default=os.getcwd(),
     )
     parser.add_argument(
-        "--build_target",
-        type=str,
-        help='the build target to download, e.g. "kernel_aarch64"',
-        default=_DEFAULT_BUILD_TARGET,
+        "--kleaf_repo",
+        help=(
+            "Path to the Kleaf source tree. Build dependencies are taken from"
+            " there when --local is provided, or downloaded there otherwise."
+        ),
+        type=pathlib.Path,
+        default=None,
     )
     parser.add_argument(
         "--url_fmt",
@@ -205,6 +219,9 @@ if __name__ == "__main__":
         default=_ARTIFACT_URL_FMT,
     )
     known_args, unknown_args = parser.parse_known_args()
+    # Validate pre-condition.
+    if known_args.local and not known_args.kleaf_repo:
+        parser.error("--local requires --kleaf_repo.")
     logging.basicConfig(
         level=logging.DEBUG, format="%(levelname)s: %(message)s"
     )

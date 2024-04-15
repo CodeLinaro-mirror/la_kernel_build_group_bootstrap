@@ -85,6 +85,7 @@ class KleafBootstrapTest(unittest.TestCase):
                     build_target=_DEFAULT_BUILD_TARGET,
                     build_id=None,
                     ddk_workspace=None,
+                    kleaf_repo=None,
                     local=None,
                     url_fmt=_ARTIFACT_URL_FMT,
                 ), [])

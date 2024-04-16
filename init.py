@@ -81,6 +81,8 @@ class KleafBootstrap:
         common_args = []
         if self.build_target:
             common_args += ["--build_target", self.build_target]
+        if self.kleaf_repo:
+            common_args += ["--kleaf_repo", self.kleaf_repo]
         common_args += ["--url_fmt", self.url_fmt]
         common_args += ["--ddk_workspace", self.ddk_workspace]
         common_args += self.unknown_args
@@ -89,7 +91,7 @@ class KleafBootstrap:
     def run(self):
         if self.local:
             args = [_TOOLS_BAZEL, "run", _INIT_DDK_TARGET]
-            args += ["--", "--kleaf_repo_dir", self.kleaf_repo]
+            args += ["--"]
             args += self._common_args()
             self._run_script(args, cwd=self.kleaf_repo)
             return

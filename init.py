@@ -91,15 +91,13 @@ class KleafBootstrap:
     def run(self):
         if self.local:
             args = [_TOOLS_BAZEL, "run", _INIT_DDK_TARGET]
-            args += ["--"]
+            args += ["--", "--local"]
             args += self._common_args()
             self._run_script(args, cwd=self.kleaf_repo)
             return
 
         if not self.build_id:
             self._set_build_id()
-
-        assert self.build_id, "build id is not set!"
 
         with tempfile.NamedTemporaryFile(
             prefix="init_ddk_", suffix=".zip", mode="w+b"
@@ -114,7 +112,6 @@ class KleafBootstrap:
             self._run_script(args)
 
     def _set_build_id(self) -> str:
-        assert self.branch, "branch is not set!"
         build_ids_fp = io.BytesIO()
         url = _BUILD_IDS_URL_FMT.format(
             branch=self.branch,
@@ -189,7 +186,7 @@ if __name__ == "__main__":
         "--local",
         help="Whether to use a local source tree containing Kleaf.",
         action="store_true",
-        default=None,
+        default=False,
     )
     parser.add_argument(
         "--build_target",

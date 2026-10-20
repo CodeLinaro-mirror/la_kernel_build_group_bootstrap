@@ -28,6 +28,7 @@ import sys
 import tempfile
 from typing import BinaryIO
 import urllib.error
+import urllib.parse
 import urllib.request
 
 # Googlers: go/android-build-api-getting-started

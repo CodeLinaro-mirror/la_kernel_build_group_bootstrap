@@ -17,6 +17,8 @@
 import argparse
 import io
 import json
+import os
+import pathlib
 import unittest
 from typing import Generator
 
@@ -56,7 +58,7 @@ class KleafBootstrapTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         print("INFO: Calculating supported branches")
-        cls.supported_branches = _get_supported_branches()
+        cls.supported_branches = list(_get_supported_branches())
         return super().setUpClass()
 
     def test_infer_build_id(self):
@@ -76,7 +78,6 @@ class KleafBootstrapTest(unittest.TestCase):
                 buf = io.BytesIO()
                 obj._download_artifact("BUILD_INFO", buf)
 
-    @unittest.skip("init_ddk.zip is not published yet")
     def test_run_with_help(self):
         for branch in self.supported_branches:
             with self.subTest(branch=branch):
@@ -84,6 +85,9 @@ class KleafBootstrapTest(unittest.TestCase):
                     branch=branch,
                     build_target=_DEFAULT_BUILD_TARGET,
                     build_id=None,
+                    ddk_workspace=pathlib.Path(os.getcwd()),
+                    kleaf_repo=None,
+                    local=None,
                     url_fmt=_ARTIFACT_URL_FMT,
                 ), ["-h"])
                 obj.run()

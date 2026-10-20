@@ -31,19 +31,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# Googlers: go/android-build-api-getting-started
-_API_ENDPOINT_PREFIX = (
-    "https://androidbuildinternal.googleapis.com/android/internal/build/v3/"
-)
+_API_ENDPOINT_PREFIX = "https://ci.android.com/builds/"
 _ARTIFACT_URL_FMT = (
     _API_ENDPOINT_PREFIX
-    # pylint: disable-next=line-too-long
-    + "builds/{build_id}/{build_target}/attempts/latest/artifacts/{filename}/url?redirect=true"
+    + "submitted/{build_id}/{build_target}/latest/raw/{filename}"
 )
 _BUILD_IDS_URL_FMT = (
     _API_ENDPOINT_PREFIX
-    # pylint: disable-next=line-too-long
-    + "builds?branch={branch}&target={build_target}&buildAttemptStatus=complete&buildType=submitted&maxResults=1&fields=builds.buildId"
+    + "branches/{branch}/targets/{build_target}/status.json"
 )
 _DEFAULT_BUILD_TARGET = "kernel_aarch64"
 _TOOLS_BAZEL = "tools/bazel"
@@ -130,16 +125,16 @@ class KleafBootstrap:
             ) from exc
 
         try:
-            self.build_id = build_ids_res["builds"][0]["buildId"]
-        except (KeyError, IndexError) as exc:
+            self.build_id = build_ids_res["target"]["last_known_good_build"]
+        except (KeyError, TypeError) as exc:
             raise KleafBootstrapError(
                 "Unable to get build_id: json not in expected format"
             ) from exc
 
-        if not isinstance(self.build_id, str):
+        if not isinstance(self.build_id, str) or not self.build_id:
             raise KleafBootstrapError(
                 "Unable to get build_id: json not in expected format: "
-                "build id is not string"
+                "build id is not a non-empty string"
             )
 
     @staticmethod

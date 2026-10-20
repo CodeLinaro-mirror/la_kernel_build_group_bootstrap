@@ -18,7 +18,6 @@ import argparse
 import io
 import json
 import unittest
-import urllib.parse
 from typing import Generator
 
 from init import (KleafBootstrap, _API_ENDPOINT_PREFIX,
@@ -28,29 +27,12 @@ from init import (KleafBootstrap, _API_ENDPOINT_PREFIX,
 
 
 def _get_branches() -> Generator[str, None, None]:
-    common_url = _API_ENDPOINT_PREFIX + "branches"
-
-    page_token = None
-    while True:
-        parsed = urllib.parse.urlparse(common_url)
-        query_dict = urllib.parse.parse_qs(parsed.query)
-        if page_token:
-            query_dict["pageToken"] = page_token
-        query_dict["fields"] = "branches.name,nextPageToken"
-        parsed = parsed._replace(
-            query=urllib.parse.urlencode(query_dict, doseq=True))
-        url = parsed.geturl()
-
-        buf = io.BytesIO()
-        KleafBootstrap._download(url, "branches", buf)
-        buf.seek(0)
-        json_obj = json.load(buf)
-        page_token = json_obj.get("nextPageToken")
-        for branch in json_obj.get("branches", []):
-            yield branch["name"]
-
-        if not page_token:
-            return
+    url = _API_ENDPOINT_PREFIX + "branches.json"
+    buf = io.BytesIO()
+    KleafBootstrap._download(url, "branches", buf)
+    buf.seek(0)
+    json_obj = json.load(buf)
+    yield from json_obj.get("branches", [])
 
 
 def _get_supported_branches() -> Generator[str, None, None]:
